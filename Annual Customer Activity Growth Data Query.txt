@@ -1,0 +1,128 @@
+--Task 2 (Annual Customer Activity Growth Analysis) 
+--No 1. Rata-rata Jumlah customer Aktif Bulanan (Monthly Active User) setiap Tahun 
+select years, floor(avg(total_customer)) as mau
+from (
+	select 
+  		date_part('year', od.order_purchase_timestamp) as years,
+  		date_part('month', od.order_purchase_timestamp) as months,
+  		count(distinct cd.customer_unique_id) as total_customer
+  	from orders_dataset as od
+  	full join customers_dataset as cd on cd.customer_id = od.customer_id
+  	group by 1, 2
+	) as tmp1
+group by 1
+order by 1;
+
+
+--No 2. Total Customer baru per Tahun
+select years, count(customer_unique_id) as total_new_customer
+from (
+  select
+  	Min(date_part('year', od.order_purchase_timestamp)) as years,
+  	cd.customer_unique_id
+  from orders_dataset as od
+  join customers_dataset as cd on cd.customer_id = od.customer_id
+  group by 2
+  ) as tmp2
+group by 1
+order by 1;
+
+
+-- No 3. Jumlah Customer yang Melakukan Repeat Order per Tahun
+select years, count(customer_unique_id) as repeat_order_customer
+from (
+	select 
+  		date_part('year', od.order_purchase_timestamp) as years,
+		cd.customer_unique_id,
+  		count(od.order_id) as total_order
+  	from orders_dataset as od
+  	full join customers_dataset as cd on cd.customer_id = od.customer_id
+  	group by 1, 2
+	having count(od.order_id)>1
+	) as tmp3
+group by 1
+order by 1;
+
+
+-- No 4. Rata-rata frekuensi Order Setiap Tahun
+select years, round(avg(total_order)) as avg_freq_order
+from (
+	select 
+  		date_part('year', od.order_purchase_timestamp) as years,
+		cd.customer_unique_id,
+  		count(od.order_id) as total_order
+  	from orders_dataset as od
+  	full join customers_dataset as cd on cd.customer_id = od.customer_id
+  	group by 1, 2
+	) as tmp4
+group by 1
+order by 1;
+
+-- No 5 Master Tabel yang Berisi Semua Informasi di no 1-4
+with tmp_mau as (
+  	select years, floor(avg(total_customer)) as mau
+	from (
+		select 
+			date_part('year', od.order_purchase_timestamp) as years,
+			date_part('month', od.order_purchase_timestamp) as months,
+			count(distinct cd.customer_unique_id) as total_customer
+  		from orders_dataset as od
+  		full join customers_dataset as cd on cd.customer_id = od.customer_id
+  		group by 1, 2
+		) as tmp1
+	group by 1
+	),
+	tmp_new_cust as (
+	select years, count(customer_unique_id) as total_new_customer
+	from (
+  		select
+			Min(date_part('year', od.order_purchase_timestamp)) as years,
+			cd.customer_unique_id
+  		from orders_dataset as od
+  		join customers_dataset as cd on cd.customer_id = od.customer_id
+  		group by 2
+  		) as tmp2
+	group by 1
+	),
+	tmp_repeat_order as (
+	select years, count(customer_unique_id) as repeat_order_customer
+	from (
+		select 
+			date_part('year', od.order_purchase_timestamp) as years,
+			cd.customer_unique_id,
+			count(od.order_id) as total_order
+		from orders_dataset as od
+		full join customers_dataset as cd on cd.customer_id = od.customer_id
+		group by 1, 2
+		having count(od.order_id)>1
+		) as tmp3
+	group by 1
+	),
+	tmp_avg_freq as (
+	select years, round(avg(total_order)) as avg_freq_order
+	from (
+		select 
+			date_part('year', od.order_purchase_timestamp) as years,
+			cd.customer_unique_id,
+			count(od.order_id) as total_order
+		from orders_dataset as od
+		full join customers_dataset as cd on cd.customer_id = od.customer_id
+		group by 1, 2
+		) as tmp4
+	group by 1
+	)
+	
+select tbmau.years as years,
+	   mau,
+	   total_new_customer,
+	   repeat_order_customer,
+	   avg_freq_order
+from
+	tmp_mau as tbmau
+	full join tmp_new_cust as nc on tbmau.years = nc.years
+	full join tmp_repeat_order as ro on nc.years = ro.years
+	full join tmp_avg_freq as fo on ro.years = fo.years
+group by 1,2,3,4,5
+order by 1;
+	   
+

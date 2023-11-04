@@ -1,0 +1,26 @@
+--Task 4
+--No 1 Payment Type Usage All Time
+Select payment_type, 
+	   count(*) as total_usage
+from order_payments_dataset
+group by 1
+Order by 2 Desc;
+
+--No 2 Payment Type Usage per Year
+Select
+	payment_type,
+	sum(case when years = 2016 then total else 0 end) as "2016",
+	sum(case when years = 2017 then total else 0 end) as "2017",
+	sum(case when  years = 2018 then total else 0 end) as "2018",
+	sum(total) as total_usage
+from (
+	select 
+  		date_part('year', od.order_purchase_timestamp) as years,
+		opd.payment_type,
+  		count(opd.payment_type) as total
+  	from orders_dataset as od
+  	join order_payments_dataset as opd on opd.order_id = od.order_id
+  	group by 1, 2
+	) as tmp
+group by 1
+order by 2 desc;

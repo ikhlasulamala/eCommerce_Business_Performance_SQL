@@ -1,0 +1,84 @@
+--Task 3 (Annual Product Category Quality Analysis)
+--No 1 Total revenue per year
+create table total_revenue_tmp as
+	select
+		date_part('year', od.order_purchase_timestamp) as years,
+		round(sum(oid.price + oid.freight_value)) as revenue
+	from order_items_dataset as oid
+	full join orders_dataset as od on oid.order_id = od.order_id
+	where od.order_status like 'delivered'
+	group by 1
+	order by 1;
+	
+--No 2 Cancelled Order per year
+create table canceled_orders_tmp as
+	select
+		date_part('year', order_purchase_timestamp) as years,
+		count(order_status) as cancel_order
+	from orders_dataset 
+	where order_status like 'canceled'
+	group by 1
+	order by 1;
+
+--No 3 Top Revenue Category Product per Year
+create table top_revenue_category as
+  select 
+  	years,
+  	top_category_product,
+  	category_product_revenue
+  from (
+  	select
+  		date_part('year', shipping_limit_date) as years,
+  		pd.product_category_name as top_category_product,
+  		round(sum(oid.price + oid.freight_value)) as category_product_revenue,
+  		rank() over (partition by date_part('year', shipping_limit_date)
+  			order by sum(oid.price + oid.freight_value) Desc) as ranking
+  	from orders_dataset as od 
+  	full join order_items_dataset as oid on od.order_id = oid.order_id
+  	full join product_dataset as pd on oid.product_id = pd.product_id
+  	where od.order_status like 'delivered'
+  	group by 1, 2
+  	ORDER BY 1
+  	) as subq
+  where ranking = 1;
+delete from top_revenue_category where years = 2020;
+
+--No 4 Most Canceled Category per Year
+create table most_canceled_order_category as
+  select 
+  	years,
+  	most_canceled_category_product,
+  	total_canceled
+  from (
+  	select
+  		date_part('year', shipping_limit_date) as years,
+  		pd.product_category_name as most_canceled_category_product,
+  		count(od.order_status) as total_canceled,
+  		rank() over (partition by date_part('year', shipping_limit_date)
+  			order by count(od.order_status) Desc) as ranking
+  	from orders_dataset as od 
+  	join order_items_dataset as oid on od.order_id = oid.order_id
+  	join product_dataset as pd on oid.product_id = pd.product_id
+  	where od.order_status like 'canceled'
+  	group by 1, 2
+  	ORDER BY 1
+  	) as subq
+  where ranking = 1;
+delete from most_canceled_order_category where years = 2020;
+
+--Master Table Task 3
+create table annual_product_category_quality as	
+	select 
+	  tr.years as years,
+	  tr.revenue as total_revenue,
+	  co.cancel_order as total_canceled,
+	  tcp.top_category_product as top_product,
+	  tcp.category_product_revenue as revenue_category_product,
+	  mcc.most_canceled_category_product as most_canceled_product,
+	  mcc.total_canceled as total_canceled_product
+	from total_revenue_tmp as tr 
+	join canceled_orders_tmp as co on tr.years = co.years
+	join top_revenue_category as tcp on tcp.years = co.years
+	join most_canceled_order_category as mcc on co.years = mcc.years
+	group by 1, 2, 3, 4, 5, 6, 7;
+
